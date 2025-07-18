@@ -1,0 +1,21 @@
+{
+    "version": "1.0.0",
+    "name": "armdevstack/strict-properties-access",
+    "description": "A PHP trait that prevents dynamic property creation and enforces strict property access using reflection.",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "ArmDevStack\\StrictPropertiesAccess\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Narek",
+            "email": "vardapetyannarek0@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.2"
+    }
+}
