@@ -2,6 +2,7 @@
 
 namespace ArmDevStack\StrictPropertiesAccess\Traits;
 
+use LogicException;
 use ReflectionClass;
 
 /**
@@ -26,6 +27,27 @@ trait StrictPropertyAccess
     private array $properties = [];
 
     /**
+     * Toggle strict mode
+     *
+     * @var bool
+     */
+    protected bool $strictMode = true;
+
+    /**
+     * Throw exception instead of echo
+     *
+     * @var bool
+     */
+    protected bool $throwExceptions = false;
+
+    /**
+     * Track invalid accesses
+     *
+     * @var array
+     */
+    protected array $invalidAccesses = [];
+
+    /**
      * Constructor initializes the ReflectionClass and fills existing properties.
      */
     public function __construct()
@@ -44,9 +66,23 @@ trait StrictPropertyAccess
     {
         $newLine = (php_sapi_name() == 'cli') ? PHP_EOL : '<br>';
 
+        if (!$this->strictMode)
+            return;
+
         if (!$this->propIsExist($propName))
         {
-            echo "Prop '$propName' does not exist!!!" . $newLine;
+            $message =  "Prop '$propName' does not exist!!!" . $newLine;
+
+            $this->invalidAccesses[] = $propName;
+
+            if (method_exists($this, 'handleMissingProperty'))
+            {
+                $this->handleMissingProperty($propName);
+
+                return;
+            }
+
+            $this->handleError($message);
         }
     }
 
@@ -61,7 +97,16 @@ trait StrictPropertyAccess
     {
         $newLine = (php_sapi_name() == 'cli') ? PHP_EOL : '<br>';
 
-        echo 'Deprecated: Creation of dynamic property is deprecated' . $newLine;
+        if (!$this->strictMode)
+        {
+            $this->$name = $value;
+
+            return;
+        }
+
+        $message = 'Deprecated: Creation of dynamic property is deprecated' . $newLine;
+
+        $this->handleError($message);
     }
 
     /**
@@ -76,13 +121,34 @@ trait StrictPropertyAccess
     }
 
     /**
-     * Retrieve all properties of the class using reflection.
+     * Optional logging
      *
-     * @return array
+     * @param string $message
+     * @return void
      */
-    protected function getProperties(): array
+    protected function logAccessError(string $message): void
     {
-        return $this->reflectionClass->getProperties();
+        error_log('[StrictPropertyAccess] ' . trim($message));
+    }
+
+    /**
+     * Handle error output
+     *
+     * @param string $message
+     * @return void
+     */
+    protected function handleError(string $message): void
+    {
+        if ($this->throwExceptions)
+        {
+            throw new LogicException(trim($message));
+        }
+        else
+        {
+            echo $message;
+
+            $this->logAccessError($message);
+        }
     }
 
     /**
@@ -96,5 +162,65 @@ trait StrictPropertyAccess
         {
             $this->properties[] = $property->name;
         }
+    }
+
+    /**
+     * Enable strict mode
+     *
+     * @return void
+     */
+    public function enableStrictMode(): void
+    {
+        $this->strictMode = true;
+    }
+
+    /**
+     * Disable strict mode
+     *
+     * @return void
+     */
+    public function disableStrictMode(): void
+    {
+        $this->strictMode = false;
+    }
+
+    /**
+     * Enable exceptions
+     *
+     * @return void
+     */
+    public function enableExceptions(): void
+    {
+        $this->throwExceptions = true;
+    }
+
+    /**
+     * Disable exceptions
+     *
+     * @return void
+     */
+    public function disableExceptions(): void
+    {
+        $this->throwExceptions = false;
+    }
+
+    /**
+     * Retrieve all properties of the class using reflection.
+     *
+     * @return array
+     */
+    protected function getProperties(): array
+    {
+        return $this->reflectionClass->getProperties();
+    }
+
+    /**
+     * Get invalid accesses array
+     *
+     * @return array
+     */
+    public function getInvalidAccesses(): array
+    {
+        return $this->invalidAccesses;
     }
 }
