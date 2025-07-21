@@ -19,10 +19,8 @@ The `StrictPropertyAccess` trait is designed to **enforce strict control over pr
 
 ## 📦 Installation
 
-Just include the trait in your project manually or via Composer (if packaged).
-
 ```php
-use ArmDevStack\StrictPropertiesAccess\Traits\StrictPropertyAccess;
+composer require armdevstack/strict-properties-access
 ```
 
 ---
