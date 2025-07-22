@@ -1,7 +1,7 @@
 {
-    "version": "1.1.0",
+    "version": "1.2.0",
     "name": "armdevstack/strict-properties-access",
-    "description": "A PHP trait that prevents dynamic property creation and enforces strict property access using reflection.",
+    "description": "Strict property access control in PHP.",
     "type": "library",
     "license": "MIT",
     "autoload": {
@@ -16,6 +16,8 @@
         }
     ],
     "require": {
-        "php": ">=8.2"
+        "php": ">=8.2",
+        "ext-ctype": "*",
+        "ext-mbstring": "*"
     }
 }

@@ -1,87 +1,54 @@
+# StrictPropertiesAccess
 
-# 📦 StrictPropertyAccess Trait
-
-The `StrictPropertyAccess` trait is designed to **enforce strict control over property access** in PHP classes. It prevents **accidental creation of dynamic properties**, helps catch **typos in property names**, and optionally **throws exceptions** or **logs access violations**.
-
-> ✅ Useful for clean, maintainable, and bug-resistant OOP design.
+Enforce strict control over property access in your PHP classes. Prevent accidental creation of dynamic properties and provide detailed handling for invalid property interactions using customizable logging and observation tools.
 
 ---
 
-## ✨ Features
+## 📦 Package Overview
 
-- ❌ Prevents dynamic property creation
-- 🛡 Strict property access enforcement
-- ⚠️ Optional exception throwing on errors
-- 🧠 Detects and logs invalid property accesses
-- 🧪 Fully customizable behavior (strict mode toggle, logging, and exceptions)
+**StrictPropertiesAccess** provides:
+
+- A trait (`StrictPropertyAccess`) for strict property access enforcement.
+- An abstract class (`AbstractStrictModel`) to simplify inheritance.
+- Interfaces for customization: `LoggerInterface`, `PropertyAccessObserverInterface`.
+- Built-in implementations: `ErrorLogger`, `DebugObserver`.
 
 ---
 
-## 📦 Installation
+## 📂 Installation
 
-```php
+Install via Composer:
+
+```bash
 composer require armdevstack/strict-properties-access
 ```
 
 ---
 
-## 🚀 Usage
+## 🚀 Quick Start
 
-### Step 1: Include the Trait
+### ✅ Recommended: Extend the Abstract Class
 
 ```php
-class User
-{
-    use StrictPropertyAccess;
+use ArmDevStack\StrictPropertiesAccess\Classes\Base\AbstractStrictModel;
 
+class User extends AbstractStrictModel
+{
     public string $name;
     public string $email;
 }
-```
 
-### Step 2: Instantiate Your Class
-
-```php
 $user = new User();
+$user->name = 'John';     // ✅ OK
+echo $user->email;        // ✅ OK
+echo $user->age;          // ❌ Triggers observer/log/exception
 ```
 
-### Step 3: Try Accessing Undefined Property
+### ⚙️ Alternative: Use the Trait Directly
 
 ```php
-echo $user->age;
-```
+use ArmDevStack\StrictPropertiesAccess\Traits\StrictPropertyAccess;
 
-**Output:**
-
-```bash
-Prop 'age' does not exist!!!
-```
-
-Or throws `LogicException`, depending on configuration.
-
----
-
-## ⚙️ Configuration Options
-
-### 🔒 Enable/Disable Strict Mode
-
-```php
-$user->disableStrictMode(); // Allow dynamic properties (default PHP behavior)
-$user->enableStrictMode();  // Enforce strict access (default)
-```
-
-### 🚨 Enable/Disable Exception Throwing
-
-```php
-$user->enableExceptions();  // Will throw LogicException on errors
-$user->disableExceptions(); // Will echo message and log error
-```
-
----
-
-## 🔍 Example with Logging
-
-```php
 class Product
 {
     use StrictPropertyAccess;
@@ -90,76 +57,199 @@ class Product
 }
 
 $product = new Product();
-
-$product->price = 99.99; // This triggers warning or exception
+$product->title = 'Laptop';       // ✅ OK
+echo $product->price;             // ❌ Invalid access
 ```
 
 ---
 
-## 🧠 Invalid Access Tracking
+## ⚙️ Features
 
-You can retrieve a list of all invalid property access attempts:
+### 🔐 Strict Mode
+
+- Enabled by default.
+- Disables dynamic properties.
+- Triggers warning/observer/exception on access to undefined properties.
+
+### 📢 Error Handling Modes
+
+- **Echo:** Output messages directly.
+- **Log:** Send to error log (via logger).
+- **Both (default):** Echo + log.
+
+### 🔧 Observers & Loggers
+
+Attach custom loggers or observers to control error behavior or monitor access attempts.
+
+---
+
+## 🛠️ Configuration API
+
+### Enable/Disable Strict Mode
 
 ```php
-$product->getInvalidAccesses(); // ['price']
+$object->enableStrictMode();    // Enable strict enforcement
+$object->disableStrictMode();   // Disable enforcement
+```
+
+### Enable/Disable Exceptions
+
+```php
+$object->enableExceptions();    // Throws LogicException on invalid access
+$object->disableExceptions();   // Echo/log instead
+```
+
+### Set Logger
+
+```php
+use ArmDevStack\StrictPropertiesAccess\Loggers\ErrorLogger;
+
+$logger = new ErrorLogger();
+$object->setLogger($logger);
+```
+
+### Set Observer
+
+```php
+use ArmDevStack\StrictPropertiesAccess\Observers\DebugObserver;
+
+$observer = new DebugObserver();
+$object->setPropertyAccessObserver($observer);
+```
+
+### Set Error Output Mode
+
+```php
+$object->setErrorOutputMode('echo'); // echo | log | both
 ```
 
 ---
 
-## 🧩 Extendability: Custom Missing Property Handler
+## 📤 Debugging Tools
 
-You can define a `handleMissingProperty` method in your class to add custom logic:
+### Track Invalid Accesses
 
 ```php
-class Post
+$invalid = $object->getInvalidAccesses();
+print_r($invalid);
+```
+
+### 🔍 Custom Handler: `handleMissingProperty()`
+
+If your class defines a method named `handleMissingProperty(string $property)`, it will be automatically invoked when a non-existent property is accessed.
+
+This allows you to override the default error behavior with custom logic:
+
+```php
+class MyModel extends AbstractStrictModel
 {
-    use StrictPropertyAccess;
-
     public string $title;
 
-    protected function handleMissingProperty(string $prop)
+    protected function handleMissingProperty(string $property): void
     {
-        echo "Custom handler: Property '$prop' is missing!";
+        echo "Custom handler: '$property' was accessed but does not exist!" . PHP_EOL;
+    }
+}
+
+$model = new MyModel();
+echo $model->nonExistent; // Triggers handleMissingProperty()
+```
+
+- This method is **optional**.
+- Only triggered if strict mode is enabled and property does not exist.
+- Takes precedence over observers and default echo/log/error behavior.
+
+---
+
+## 🧩 Interfaces
+
+### `StrictPropertyAccessInterface`
+
+```php
+public function enableStrictMode(): void;
+public function disableStrictMode(): void;
+public function enableExceptions(): void;
+public function disableExceptions(): void;
+public function getInvalidAccesses(): array;
+```
+
+### `LoggerInterface`
+
+```php
+public function log(string $message): void;
+```
+
+### `PropertyAccessObserverInterface`
+
+```php
+public function onMissingProperty(string $property);
+public function onDynamicPropertyCreationAttempt(string $property, $value);
+```
+
+---
+
+## 🏗️ Extend with Your Own Classes
+
+### Custom Observer Example
+
+```php
+use ArmDevStack\StrictPropertiesAccess\Contracts\Observers\PropertyAccessObserverInterface;
+
+class CustomObserver implements PropertyAccessObserverInterface
+{
+    public function onMissingProperty(string $property)
+    {
+        // Your custom logic
+    }
+
+    public function onDynamicPropertyCreationAttempt(string $property, $value)
+    {
+        // Custom alerting/logging
     }
 }
 ```
 
 ---
 
-## ✅ Best Practices
+## 📌 Example Use Case: Preventing Bugs in DTOs
 
-- Use this trait in **DTOs**, **ViewModels**, or **Service classes** where strict control matters.
-- Enables **early bug detection** by preventing typo-induced silent bugs.
-- Works perfectly in **unit-tested systems** where strict object shape is expected.
+```php
+class PaymentDTO extends AbstractStrictModel
+{
+    public string $amount;
+    public string $currency;
+}
 
----
-
-## 📌 Notes
-
-- Works with both **CLI** and **Web** environments (`PHP_EOL` or `<br>` used accordingly).
-- Reflection is initialized once on instantiation for performance.
-- Does **not** prevent method overloading or other OOP features.
-
----
-
-## 🔧 Advanced: Internal Methods
-
-| Method                      | Description                                  |
-|----------------------------|----------------------------------------------|
-| `__get()` / `__set()`      | Magic interceptors for access and assignment |
-| `handleError($message)`    | Central error handler                        |
-| `logAccessError($message)` | Logs error using `error_log()`               |
-| `getInvalidAccesses()`     | Returns array of invalid property accesses   |
-| `fillProperties()`         | Loads class properties using Reflection      |
+$dto = new PaymentDTO();
+$dto->amount = '100';
+// Oops! Typo
+$dto->currncy = 'USD';  // ❌ Will trigger strict mode warning/exception
+```
 
 ---
 
-## 📄 License
+## 🧪 Unit Testing Tip
 
-MIT License. Free for commercial and personal use.
+For test environments, you can disable strict mode:
+
+```php
+$dto->disableStrictMode();
+```
 
 ---
 
-## 👨‍💻 Author
+## 🧾 License
 
-Crafted by [ArmDevStack](https://github.com/ArmDevStack) with ❤️ for better object-oriented code.
+MIT © [ArmDevStack](https://github.com/armdevstack)
+
+---
+
+## 🙌 Contributing
+
+Pull requests are welcome. For major changes, please open an issue first.
+
+---
+
+## 📫 Support
+
+For bugs or suggestions, open an issue on GitHub or contact [vardapetyannarek0@gmail.com](mailto:svardapetyannarek0@gmail.com).

@@ -2,53 +2,85 @@
 
 namespace ArmDevStack\StrictPropertiesAccess\Traits;
 
+use ArmDevStack\StrictPropertiesAccess\Contracts\Loggers\LoggerInterface;
+use ArmDevStack\StrictPropertiesAccess\Contracts\Observers\PropertyAccessObserverInterface;
+use InvalidArgumentException;
 use LogicException;
 use ReflectionClass;
+use ReflectionProperty;
 
 /**
- * Trait StrictPropertyAccess
- *
- * Prevents dynamic property creation and provides strict property existence checks.
+ * A trait that enforces strict property access rules.
+ * Prevents dynamic properties and provides
+ * detailed error handling via logger or observer.
  */
 trait StrictPropertyAccess
 {
     /**
-     * Reflection class instance of the using class.
+     * Reflects the current class.
      *
      * @var ReflectionClass|null
      */
     private ?ReflectionClass $reflectionClass;
 
     /**
-     * List of existing property names of the using class.
+     * Filter for which properties to reflect (defaults to public).
+     *
+     * @var int
+     */
+    protected int $propertyFilter = ReflectionProperty::IS_PUBLIC;
+
+    /**
+     * Optional logger for error logging.
+     *
+     * @var LoggerInterface|null
+     */
+    protected ?LoggerInterface $logger = null;
+
+    /**
+     * Optional observer for property access.
+     *
+     * @var PropertyAccessObserverInterface|null
+     */
+    protected ?PropertyAccessObserverInterface $propertyAccessObserver = null;
+
+    /**
+     * Mode: 'echo', 'log', or 'both'.
+     *
+     * @var string
+     */
+    protected string $errorOutputMode = 'both';
+
+    /**
+     * List of all defined properties.
      *
      * @var array
      */
     private array $properties = [];
 
     /**
-     * Toggle strict mode
+     * Whether strict mode is enabled.
      *
      * @var bool
      */
     protected bool $strictMode = true;
 
     /**
-     * Throw exception instead of echo
+     * Whether to throw exceptions or echo.
      *
      * @var bool
      */
     protected bool $throwExceptions = false;
 
     /**
-     * Track invalid accesses
+     * Tracks invalid property accesses.
      *
      * @var array
      */
     protected array $invalidAccesses = [];
 
     /**
-     * Constructor initializes the ReflectionClass and fills existing properties.
+     * Initializes reflection and fills properties.
      */
     public function __construct()
     {
@@ -57,7 +89,8 @@ trait StrictPropertyAccess
     }
 
     /**
-     * Magic getter to prevent access to undefined properties.
+     * Handles access to undefined properties.
+     * Delegates to observer and logger if defined.
      *
      * @param string $propName
      * @return void
@@ -75,6 +108,11 @@ trait StrictPropertyAccess
 
             $this->invalidAccesses[] = $propName;
 
+            if ($this->propertyAccessObserver)
+            {
+                $this->propertyAccessObserver->onMissingProperty($propName);
+            }
+
             if (method_exists($this, 'handleMissingProperty'))
             {
                 $this->handleMissingProperty($propName);
@@ -87,7 +125,7 @@ trait StrictPropertyAccess
     }
 
     /**
-     * Magic setter to prevent creation of dynamic properties.
+     * Prevents dynamic property creation, unless strict mode is disabled.
      *
      * @param string $name
      * @param mixed $value
@@ -104,13 +142,18 @@ trait StrictPropertyAccess
             return;
         }
 
+        if ($this->propertyAccessObserver)
+        {
+            $this->propertyAccessObserver->onDynamicPropertyCreationAttempt($name, $value);
+        }
+
         $message = 'Deprecated: Creation of dynamic property is deprecated' . $newLine;
 
         $this->handleError($message);
     }
 
     /**
-     * Check if the given property exists in the class.
+     * Checks if a property exists in class.
      *
      * @param string $propName
      * @return bool
@@ -121,18 +164,21 @@ trait StrictPropertyAccess
     }
 
     /**
-     * Optional logging
+     * Logs message using logger if available.
      *
      * @param string $message
      * @return void
      */
     protected function logAccessError(string $message): void
     {
-        error_log('[StrictPropertyAccess] ' . trim($message));
+        if ($this->logger)
+        {
+            $this->logger->log($message);
+        }
     }
 
     /**
-     * Handle error output
+     * Echoes or throws exception, and logs if needed.
      *
      * @param string $message
      * @return void
@@ -152,7 +198,7 @@ trait StrictPropertyAccess
     }
 
     /**
-     * Populate the properties array with existing property names.
+     * Populates properties list from reflection.
      *
      * @return void
      */
@@ -165,7 +211,7 @@ trait StrictPropertyAccess
     }
 
     /**
-     * Enable strict mode
+     * Turns on strict property mode.
      *
      * @return void
      */
@@ -175,7 +221,7 @@ trait StrictPropertyAccess
     }
 
     /**
-     * Disable strict mode
+     * Turns off strict property mode.
      *
      * @return void
      */
@@ -185,7 +231,7 @@ trait StrictPropertyAccess
     }
 
     /**
-     * Enable exceptions
+     * Enables exception throwing on invalid access.
      *
      * @return void
      */
@@ -195,7 +241,7 @@ trait StrictPropertyAccess
     }
 
     /**
-     * Disable exceptions
+     * Disables exception throwing.
      *
      * @return void
      */
@@ -205,22 +251,71 @@ trait StrictPropertyAccess
     }
 
     /**
-     * Retrieve all properties of the class using reflection.
+     * Retrieves properties using reflection and filter.
      *
      * @return array
      */
     protected function getProperties(): array
     {
-        return $this->reflectionClass->getProperties();
+        return $this->reflectionClass->getProperties($this->propertyFilter);
     }
 
     /**
-     * Get invalid accesses array
+     * Returns list of invalid accesses.
      *
      * @return array
      */
     public function getInvalidAccesses(): array
     {
         return $this->invalidAccesses;
+    }
+
+    /**
+     * Changes reflection filter (e.g., private, protected).
+     *
+     * @param int $filter
+     * @return void
+     */
+    public function setPropertyFilter(int $filter): void
+    {
+        $this->propertyFilter = $filter;
+    }
+
+    /**
+     * Assigns a logger.
+     *
+     * @param LoggerInterface $logger
+     * @return void
+     */
+    public function setLogger(LoggerInterface $logger): void
+    {
+        $this->logger = $logger;
+    }
+
+    /**
+     * Assigns an observer.
+     *
+     * @param PropertyAccessObserverInterface $observer
+     * @return void
+     */
+    public function setPropertyAccessObserver(PropertyAccessObserverInterface $observer): void
+    {
+        $this->propertyAccessObserver = $observer;
+    }
+
+    /**
+     * Sets output mode for error handling; throws if invalid.
+     *
+     * @param string $mode
+     * @return void
+     */
+    public function setErrorOutputMode(string  $mode): void
+    {
+        $allowed = ['echo', 'log', 'both'];
+
+        if(!in_array($mode, $allowed))
+        {
+            throw new InvalidArgumentException("Invalid error output mode");
+        }
     }
 }
